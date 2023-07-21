@@ -1,5 +1,13 @@
 """Basic script to train CIFAR10 and ImageNet close to SOTA with ResNets"""
 
+"""98.46% global average pool before relu"""
+"""98.31% with no bias at output"""
+"""98.25% baseline"""
+"""98.14% tanh instead of relu at the end"""
+"""97.85% tanh everywhere"""
+"""98.32% bn before conv for embedding"""
+"""98.42% bn instead of normalize"""
+
 """
 CIFAR10
 accelerate launch --mixed_precision fp16 main.py --model $model --cifar-resize $size --batch-size 128 --seed 0
@@ -93,7 +101,7 @@ if args.dataset.lower() == "imagenet":
             transforms.RandomHorizontalFlip(),
             torchvision.transforms.TrivialAugmentWide(),
             transforms.ToTensor(),
-            normalize,
+        #    normalize,
             torchvision.transforms.RandomErasing(0.1)
         ]))
     test = torchvision.datasets.ImageNet(
@@ -103,7 +111,8 @@ if args.dataset.lower() == "imagenet":
             transforms.ToTensor(),
             transforms.Resize(232, antialias=True),
             transforms.CenterCrop(224),
-            normalize]))
+            #normalize
+        ]))
     num_classes, large_input, input_size = 1000, True, (1, 3, 224, 224)
 if args.dataset.lower() == "cifar10" or args.dataset.lower() == "cifar100":
     if args.dataset.lower() == "cifar10":
@@ -120,16 +129,16 @@ if args.dataset.lower() == "cifar10" or args.dataset.lower() == "cifar100":
             transforms.RandomCrop(32, padding=4),
             transforms.TrivialAugmentWide(),
             transforms.ToTensor(),
-            normalize,
+        #    normalize,
             transforms.Resize(args.cifar_resize, antialias=True),
-            transforms.RandomErasing(0.1)
+#            transforms.RandomErasing(0.1)
         ]))
     test = tvdset(
         root=args.dataset_path,
         train=False,
         transform=transforms.Compose([
             transforms.ToTensor(),
-            normalize,
+        #    normalize,
             transforms.Resize(args.cifar_resize, antialias=True)
         ]))
     large_input = False
@@ -286,6 +295,8 @@ for era in range(1 if args.adam or args.no_warmup else 0, args.eras + 1):
     while step < total_steps_for_era:
         for batch_idx, (inputs, targets) in enumerate(train_loader):
             step += 1
+
+            inputs = transforms.RandomErasing(0.1)(inputs)
 
             optimizer.zero_grad(set_to_none=True)
             outputs = net(inputs)

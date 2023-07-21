@@ -22,12 +22,14 @@ class BasicBlock(nn.Module):
         self.downsample = downsample
 
     def forward(self, x):
+        x = torch.relu(x)
+        
         identity = x
 
         out = self.conv1(x)
         out = self.bn1(out)
-        out = torch.relu(out)
 
+        out = torch.relu(out)
         out = self.conv2(out)
         out = self.bn2(out)
 
@@ -35,7 +37,7 @@ class BasicBlock(nn.Module):
             identity = self.downsample(x)
 
         out += identity
-        out = torch.relu(out)
+        #out = torch.relu(out)
 
         return out
 
@@ -55,16 +57,18 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
 
     def forward(self, x: Tensor) -> Tensor:
+        x = self.relu(x)
         identity = x
 
         out = self.conv1(x)
         out = self.bn1(out)
-        out = self.relu(out)
 
+
+        out = self.relu(out)
         out = self.conv2(out)
         out = self.bn2(out)
-        out = self.relu(out)
 
+        out = self.relu(out)
         out = self.conv3(out)
         out = self.bn3(out)
 
@@ -72,7 +76,6 @@ class Bottleneck(nn.Module):
             identity = self.downsample(x)
 
         out += identity
-        out = self.relu(out)
 
         return out
 
@@ -86,15 +89,17 @@ class ResNet(nn.Module):
         self.base_width = width
         if large_input:
             self.embed = nn.Sequential(
+                nn.BatchNorm2d(3),
                 nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False),
                 nn.BatchNorm2d(self.inplanes),
-                nn.ReLU(inplace=True),
+                #nn.ReLU(inplace=True),
                 nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
         else:
             self.embed = nn.Sequential(
+                nn.BatchNorm2d(3),
                 nn.Conv2d(3, self.inplanes, kernel_size=3, stride=1, padding=1, bias=False),
-                nn.BatchNorm2d(self.inplanes),
-                nn.ReLU(inplace=True)
+                nn.BatchNorm2d(self.inplanes)
+#                nn.ReLU(inplace=True)
             )
         
         self.layer1 = self._make_layer(block, width, layers[0], stride=1)
@@ -106,8 +111,8 @@ class ResNet(nn.Module):
         else:
             self.layer4 = nn.Identity()
             self.fc = nn.Linear(width*4 * block.expansion, num_classes)
-        #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        
+            
+        #self.avgpool = nn.AdaptiveAvgPool2d((1, 1))        
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
@@ -167,6 +172,7 @@ class ResNet(nn.Module):
 
         x = x.mean(-1).mean(-1)
         x = torch.flatten(x, 1)
+        x = torch.relu(x)
         x = self.fc(x)
 
         return x
