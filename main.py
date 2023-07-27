@@ -14,15 +14,15 @@ accelerate launch --mixed_precision fp16 main.py --model $model --cifar-resize $
 model     |         32         |         52          |
 resnet20  | 97.97% ( 90% 2h30) | 97.66% (100%  3h38) |
 resnet56  | 98.27% ( 90% 5h22) | 98.40% ( 90%  9h19) |
-resnet18  | 97.77% (100% 2h28) | 98.01% ( 90%  3h11) | 
+resnet18  | 97.77% (100% 2h28) | 98.01% ( 90%  3h11) |
 resnet50  | 98.17% ( 90% 5h18) | 98.18% ( 90% 10h05) |
-resnet20, width 16, 32x32: 94.65% 
+resnet20, width 16, 32x32: 94.65%
 resnet56, width 16, 32x32: 96.76%
 
 CIFAR100
 accelerate launch --mixed_precision fp16 main.py --model $model --dataset cifar100 --cifar-resize $size --batch-size 128 --seed 0
 model     |         32         |         52          |
-resnet20  | 83.69% ( 90% 2h32) | 83.88% ( 70% 3h42)  | 
+resnet20  | 83.69% ( 90% 2h32) | 83.88% ( 70% 3h42)  |
 resnet56  | 85.64% ( 70% 5h27) | 85.96% ( 70% 9h19)  |
 resnet18  | 82.96% ( 70% 2h16) | 84.89% ( 80% 3h11)  |
 resnet50  | 84.81% ( 60% 5h39) | 85.20% ( 60% 10h08) |
@@ -30,7 +30,7 @@ resnet20, width 16, 32x32: 71.83%
 resnet56, width 16, 32x32: 79.18%
 
 ImageNet
-accelerate launch --gpu_ids 0,1,2,3 --multi_gpu --num_processes 4 --mixed_precision fp16 main.py --model resnet18 --dataset imagenet --seed 0 : 
+accelerate launch --gpu_ids 0,1,2,3 --multi_gpu --num_processes 4 --mixed_precision fp16 main.py --model resnet18 --dataset imagenet --seed 0 :
 accelerate launch --gpu_ids 0,1,2,3 --multi_gpu --num_processes 4 --mixed_precision fp16 main.py --model resnet50 --dataset imagenet --seed 0 : 80.77% (90% 29h24)
 (Peak perf is  80.65% at step 716885 ( 80.83% at step 671288))
 """
@@ -50,13 +50,15 @@ from accelerate import Accelerator
 from torchinfo import summary
 from resnet import *
 
+from miniimagenet import MiniImageNet
+
 from utils import ExponentialMovingAverage, RandomMixup, RandomCutmix
 from torch.utils.data.dataloader import default_collate
 
 accelerator = Accelerator(split_batches=True)
 
 parser = argparse.ArgumentParser(description="Vincent's Training Routine")
-parser.add_argument('--dataset', type=str, default="CIFAR10", help="CIFAR10, CIFAR100 or ImageNet")
+parser.add_argument('--dataset', type=str, default="CIFAR10", help="CIFAR10, CIFAR100, ImageNet or MiniImageNet")
 parser.add_argument('--steps', type=int, default=750000)
 parser.add_argument('--batch-size', type = int, default=1024)
 parser.add_argument('--seed', type = int, default=-1)
@@ -143,6 +145,29 @@ if args.dataset.lower() == "cifar10" or args.dataset.lower() == "cifar100":
         ]))
     large_input = False
     input_size = (1, 3, args.cifar_resize, args.cifar_resize)
+
+if args.dataset.lower() == "miniimagenet":
+    train = MiniImageNet(
+        root=args.dataset_path,
+        split="base",
+        transform=transforms.Compose([
+            transforms.RandomResizedCrop(176, antialias=True),
+            transforms.RandomHorizontalFlip(),
+            torchvision.transforms.TrivialAugmentWide(),
+            transforms.ToTensor(),
+        #    normalize,
+            torchvision.transforms.RandomErasing(0.1)
+        ]))
+    test = MiniImageNet(
+        root=args.dataset_path,
+        split="val",
+        transform=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Resize(232, antialias=True),
+            transforms.CenterCrop(224),
+            #normalize
+        ]))
+    num_classes, large_input, input_size = 1000, True, (1, 3, 224, 224)
 
 
 mixupcutmix = torchvision.transforms.RandomChoice(
@@ -291,7 +316,7 @@ for era in range(1 if args.adam or args.no_warmup else 0, args.eras + 1):
 
     if start_time == 0:
         start_time = time.time()
-    
+
     while step < total_steps_for_era:
         for batch_idx, (inputs, targets) in enumerate(train_loader):
             step += 1
@@ -322,7 +347,7 @@ for era in range(1 if args.adam or args.no_warmup else 0, args.eras + 1):
 
             step_time = (time.time() - start_time) / (args.steps * (era - 1 if era > 0 else 0) + step + (5 * len(train_loader) if not args.adam and era > 0 else 0))
             remaining_time = (total_steps_for_era - step + (args.eras - era) * args.steps) * step_time
-            
+
         score, score_ema = test()
         if 100 * score > peak:
             peak = 100 * score
