@@ -10,9 +10,7 @@ def json_to_dict(split: str = "base") -> Dict[str, Any]:
     json_path = os.path.join(os.path.dirname(__file__), "miniimagenet", f"{split}.json")
     with open(json_path, "r") as f:
         file_list = json.load(f)
-        # print(type(file_list["label_names"]))
-        # print(type(file_list["image_names"]))
-        # print(type(file_list["image_labels"]))
+
         wnids = file_list["label_names"]
         image_names = file_list["image_names"]
         idx = file_list["image_labels"]
@@ -73,7 +71,6 @@ def make_dataset(
 
     available_classes = wnids
 
-
     empty_classes = set(class_to_idx.keys()) - available_classes
     if empty_classes:
         msg = f"Found no valid file for the classes {', '.join(sorted(empty_classes))}. "
@@ -86,7 +83,7 @@ def make_dataset(
 
 class MiniImageNet(ImageNet):
 
-    def __init__(self, root: str, split: str = "train", **kwargs: Any) -> None:
+    def __init__(self, root: str, split: str = "base", **kwargs: Any) -> None:
         root = self.root = os.path.expanduser(root)
         self.split = verify_str_arg(split, "split", ("base", "val", "novel"))
 
@@ -99,7 +96,6 @@ class MiniImageNet(ImageNet):
         self.wnid_to_idx = self.class_to_idx
         self.classes = [wnid_to_classes[wnid] for wnid in self.wnids]
         self.class_to_idx = {cls: idx for idx, clss in enumerate(self.classes) for cls in clss}
-
 
     @property
     def split_folder(self) -> str:
@@ -163,6 +159,23 @@ class MiniImageNet(ImageNet):
         for i, wnid in enumerate(wnids):
             if i in idx:
                 class_to_idx[wnid] = i
-        print(class_to_idx)
+
         classes = list(class_to_idx.keys())
         return classes, class_to_idx
+
+    def get_num_elem_per_class(self):
+        idx = set()
+        for sample in self.samples:
+            idx.add(sample[1])
+
+        # create a dict with keys idx and values the number of elements per class
+        num_elem_per_class = {}
+        for i in idx:
+            num_elem_per_class[i] = 0
+        for sample in self.samples:
+            num_elem_per_class[sample[1]] += 1
+
+        # verify that the number of elements per class is the same for all classes
+        assert len(set(num_elem_per_class.values())) == 1
+
+        return set(num_elem_per_class.values()).pop()
