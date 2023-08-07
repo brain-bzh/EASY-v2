@@ -168,7 +168,7 @@ if args.dataset.lower() == "miniimagenet":
             transforms.ToTensor(),
             # norm,
             ]))
-    num_classes, large_input, input_size = 1000, True, (1, 3, 224, 224)
+    num_classes, large_input, input_size = 1000, True, (1, 3, 84, 84)
 
 
 mixupcutmix = torchvision.transforms.RandomChoice(
