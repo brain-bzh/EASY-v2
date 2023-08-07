@@ -147,26 +147,27 @@ if args.dataset.lower() == "cifar10" or args.dataset.lower() == "cifar100":
     input_size = (1, 3, args.cifar_resize, args.cifar_resize)
 
 if args.dataset.lower() == "miniimagenet":
+    norm = transforms.Normalize(np.array([x / 255.0 for x in [125.3, 123.0, 113.9]]), np.array([x / 255.0 for x in [63.0, 62.1, 66.7]]))
+
     train = MiniImageNet(
         root=args.dataset_path,
         split="base",
         transform=transforms.Compose([
-            transforms.RandomResizedCrop(176, antialias=True),
+            transforms.RandomResizedCrop(84),
+            transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
             transforms.RandomHorizontalFlip(),
-            torchvision.transforms.TrivialAugmentWide(),
             transforms.ToTensor(),
-        #    normalize,
-            torchvision.transforms.RandomErasing(0.1)
-        ]))
+            # norm,
+            ]))
     test = MiniImageNet(
         root=args.dataset_path,
         split="val",
         transform=transforms.Compose([
+            transforms.Resize(92),
+            transforms.CenterCrop(84),
             transforms.ToTensor(),
-            transforms.Resize(232, antialias=True),
-            transforms.CenterCrop(224),
-            #normalize
-        ]))
+            # norm,
+            ]))
     num_classes, large_input, input_size = 1000, True, (1, 3, 224, 224)
 
 
